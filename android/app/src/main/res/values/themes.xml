@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Material 3: тёмная/светлая тема по системной настройке -->
+    <style name="Theme.MeshRanker" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/mesh_surface</item>
+        <item name="android:navigationBarColor">@color/mesh_surface</item>
+        <item name="colorPrimary">@color/mesh_accent</item>
+        <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
+    </style>
+</resources>

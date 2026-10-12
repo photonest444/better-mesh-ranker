@@ -1,2 +1,52 @@
+# --- tokens & caches (never commit these) ---
 school-mos-ru.json
 users_cache.json
+
+# --- node / electron ---
+node_modules/
+desktop/node_modules/
+desktop/dist/
+desktop/out/
+npm-debug.log*
+yarn-error.log*
+
+# Собранные копии общего кода (их делает npm run sync / задача syncSharedUi)
+desktop/src/renderer/
+desktop/src/core/
+android/app/src/main/assets/ui/
+android/app/src/main/assets/core/
+
+# --- preview / dev artifacts ---
+.preview/
+*.log
+
+# --- android / gradle ---
+.gradle/
+android/.gradle/
+android/local.properties
+android/build/
+android/app/build/
+android/captures/
+*.apk
+*.aab
+*.keystore
+*.jks
+android/.idea/
+*.iml
+
+# --- python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# --- editors / os ---
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# --- сборки Android (APK/AAB) собираются в CI ---
+android/app/release/
+release/
+*.apk.idsig

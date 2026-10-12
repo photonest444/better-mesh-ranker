@@ -1,0 +1,75 @@
+{
+  "name": "mesh-ranker-desktop",
+  "productName": "Mesh Ranker",
+  "version": "1.0.0",
+  "description": "МЭШ Рейтинг — рейтинг класса school.mos.ru (Windows и Linux)",
+  "main": "src/main/main.js",
+  "private": true,
+  "author": {
+    "name": "DaniilBorovskiy1809",
+    "email": "daniilborovskiy1809@users.noreply.github.com"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/photonest444/better-mesh-ranker",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/photonest444/better-mesh-ranker.git"
+  },
+  "scripts": {
+    "sync": "node tools/sync-ui.js",
+    "start": "npm run sync && electron .",
+    "dev": "npm run sync && electron . --dev",
+    "demo": "npm run sync && electron . --demo",
+    "prepack": "npm run sync",
+    "pack": "npm run sync && electron-builder --dir",
+    "dist:win": "npm run sync && electron-builder --win nsis portable --publish never",
+    "dist:linux": "npm run sync && electron-builder --linux AppImage deb --publish never",
+    "dist": "npm run sync && electron-builder --win nsis portable --linux AppImage deb --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "ru.mesh.ranker",
+    "productName": "Mesh Ranker",
+    "copyright": "MIT © DaniilBorovskiy1809",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/main/**/*",
+      "src/preload/**/*",
+      "src/renderer/**/*",
+      "src/core/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "artifactName": "MeshRanker-${version}-win-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mesh Ranker"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "category": "Education",
+      "icon": "build/icon.png",
+      "synopsis": "Рейтинг класса МЭШ",
+      "description": "Рейтинг класса school.mos.ru: места, средние баллы, оценки, домашние задания и расписание.",
+      "artifactName": "MeshRanker-${version}-linux-${arch}.${ext}"
+    },
+    "deb": {
+      "depends": ["libgtk-3-0", "libnotify4", "libnss3", "libxss1", "libxtst6", "xdg-utils", "libatspi2.0-0", "libsecret-1-0"]
+    }
+  }
+}
