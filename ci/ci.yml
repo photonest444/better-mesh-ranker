@@ -44,6 +44,9 @@ jobs:
       - name: Дымовой тест приложения (демо-режим, полный путь пользователя)
         run: node tools/smoke-preview.js
 
+      - name: Проверка Android-ресурсов (без сборки: строки, цвета, темы, манифест)
+        run: node tools/validate-android.js
+
       - name: Проверка, что в репозиторий не попали токены и кэши
         run: |
           set -e

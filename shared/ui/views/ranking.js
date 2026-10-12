@@ -447,6 +447,12 @@
       refresh: function () { return load(true); },
       setDate: function (iso) { state.date = iso; return load(true); },
       getDate: function () { return state.date; },
+      // Выбирает предмет (или 'all') — используется ссылками из других вкладок.
+      // Если список предметов ещё не загружен, выбор применится после его загрузки.
+      selectSubject: function (subjectId) {
+        state.selected = [subjectId === undefined || subjectId === null || subjectId === '' ? 'all' : String(subjectId)];
+        return load(true);
+      },
       reloadSubjects: function () { state.subjects = []; }
     };
   }

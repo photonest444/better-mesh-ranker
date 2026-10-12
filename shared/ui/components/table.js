@@ -39,7 +39,7 @@
       query: '',
       filters: {},
       page: 1,
-      pageSize: cfg.pageSize === undefined ? 25 : cfg.pageSize,
+      pageSize: cfg.pageSize === undefined ? 25 : Number(cfg.pageSize) || 0,
       loading: false
     };
 

@@ -128,7 +128,7 @@ bash scripts/enable-ci.sh && git add .github/workflows && git commit -m "CI" && 
 
 | Workflow | Что делает |
 | --- | --- |
-| `ci/ci.yml` | проверка синтаксиса, `node --test tests/`, дымовой тест полного пути пользователя, проверка main-процесса Electron, поиск случайно закоммиченных токенов |
+| `ci/ci.yml` | проверка синтаксиса, `node --test tests/`, дымовой тест полного пути пользователя, статическая проверка Android-ресурсов (`tools/validate-android.js`), проверка main-процесса Electron, поиск случайно закоммиченных токенов |
 | `ci/desktop.yml` | сборка Windows (NSIS + portable) и Linux (AppImage + deb), артефакты + публикация в релиз по тегу `v*` |
 | `ci/android.yml` | JVM-тесты ядра, `assembleDebug`, `assembleRelease`, артефакты APK |
 

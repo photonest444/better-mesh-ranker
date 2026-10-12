@@ -263,6 +263,9 @@
     demoToken: function () { return call('demoToken', {}); },
 
     saveFile: saveFile,
+
+    /** Прямой вызов метода платформы (используется редко, напр. clearCache). */
+    call: call,
     settings: {
       get: loadSettings,
       set: saveSettings,

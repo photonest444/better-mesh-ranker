@@ -7,4 +7,10 @@
         <item name="colorPrimary">@color/mesh_accent</item>
         <item name="android:windowLightStatusBar" tools:targetApi="m">false</item>
     </style>
+
+    <!-- Окно входа: с ActionBar, чтобы работали заголовок и кнопка «назад» -->
+    <style name="Theme.MeshRanker.Login" parent="Theme.Material3.DayNight">
+        <item name="colorPrimary">@color/mesh_accent</item>
+        <item name="android:statusBarColor">@color/mesh_surface</item>
+    </style>
 </resources>

@@ -18,7 +18,8 @@
       return ui.field(Object.assign({
         onChange: function (value) {
           var patch = {};
-          patch[options.key] = value;
+          // Числовые настройки храним числами, а не строками из <select>
+          patch[options.key] = options.numeric ? Number(value) : value;
           platform.settings.set(patch);
           if (options.key === 'theme') platform.applyTheme(value);
           if (ctx.onSettingsChanged) ctx.onSettingsChanged(patch);
@@ -40,7 +41,7 @@
             options: [{ value: 'auto', label: 'Как в системе' }, { value: 'dark', label: 'Тёмная' }, { value: 'light', label: 'Светлая' }]
           }),
           field({
-            key: 'pageSize', label: 'Строк на странице', type: 'select', value: String(settings.pageSize),
+            key: 'pageSize', label: 'Строк на странице', type: 'select', numeric: true, value: String(settings.pageSize),
             options: [{ value: '10', label: '10' }, { value: '25', label: '25' }, { value: '50', label: '50' }, { value: '100', label: '100' }, { value: '0', label: 'Все строки' }]
           }),
           field({ key: 'denseTables', label: 'Компактные таблицы', type: 'checkbox', value: settings.denseTables, hint: 'меньше отступов — больше строк на экране' }),
@@ -61,7 +62,7 @@
         body: [
           field({ key: 'onlyMyClass', label: 'Показывать только свой класс', type: 'checkbox', value: settings.onlyMyClass }),
           field({
-            key: 'autoRefreshMinutes', label: 'Автообновление данных', type: 'select', value: String(settings.autoRefreshMinutes || 0),
+            key: 'autoRefreshMinutes', label: 'Автообновление данных', type: 'select', numeric: true, value: String(settings.autoRefreshMinutes || 0),
             options: [{ value: '0', label: 'выключено' }, { value: '5', label: 'каждые 5 минут' }, { value: '15', label: 'каждые 15 минут' }, { value: '60', label: 'каждый час' }]
           }),
           field({ key: 'autoRefreshToken', label: 'Автоматически обновлять токен МЭШ', type: 'checkbox', value: settings.autoRefreshToken, hint: 'при 401 приложение само запрашивает новый токен и повторяет запрос' }),

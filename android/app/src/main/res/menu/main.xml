@@ -1,32 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/action_refresh"
-        android:showAsAction="never"
+        app:showAsAction="never"
         android:title="@string/menu_refresh" />
     <item
         android:id="@+id/action_login"
-        android:showAsAction="never"
+        app:showAsAction="never"
         android:title="@string/menu_login" />
     <item
         android:id="@+id/action_refresh_token"
-        android:showAsAction="never"
+        app:showAsAction="never"
         android:title="@string/menu_refresh_token" />
     <item
         android:id="@+id/action_demo"
         android:checkable="true"
-        android:showAsAction="never"
+        app:showAsAction="never"
         android:title="@string/menu_demo" />
     <item
         android:id="@+id/action_sign_out"
-        android:showAsAction="never"
+        app:showAsAction="never"
         android:title="@string/menu_sign_out" />
     <item
         android:id="@+id/action_open_mesh"
-        android:showAsAction="never"
+        app:showAsAction="never"
         android:title="@string/menu_open_mesh" />
     <item
         android:id="@+id/action_about"
-        android:showAsAction="never"
+        app:showAsAction="never"
         android:title="@string/menu_about" />
 </menu>
