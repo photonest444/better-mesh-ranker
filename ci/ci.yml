@@ -1,0 +1,130 @@
+name: CI
+
+# Проверки ядра и интерфейса: синтаксис, модульные тесты, дымовой тест приложения.
+# Сборки приложений живут в desktop.yml и android.yml.
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-and-ui:
+    name: Ядро, интерфейс и тесты
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Проверка синтаксиса всех JS-файлов
+        run: |
+          set -e
+          count=0
+          while IFS= read -r file; do
+            node --check "$file"
+            count=$((count + 1))
+          done < <(find shared tools tests -name '*.js' -not -path '*/node_modules/*')
+          echo "Проверено файлов: $count"
+
+      - name: Модульные тесты ядра (node:test)
+        run: node --test tests/
+
+      - name: Дымовой тест приложения (демо-режим, полный путь пользователя)
+        run: node tools/smoke-preview.js
+
+      - name: Проверка Android-ресурсов (без сборки: строки, цвета, темы, манифест)
+        run: node tools/validate-android.js
+
+      - name: Проверка, что в репозиторий не попали токены и кэши
+        run: |
+          set -e
+          for forbidden in school-mos-ru.json users_cache.json .preview/session.json; do
+            if git ls-files --error-unmatch "$forbidden" >/dev/null 2>&1; then
+              echo "::error::В репозитории найден файл с токеном: $forbidden"
+              exit 1
+            fi
+          done
+          if git grep -In -E 'eyJhbGciOiJ[A-Za-z0-9_-]{10,}\.' -- . ':!*.md' ':!tests' ':!tools' | head -5; then
+            echo "::error::В коде найден похожий на токен JWT-литерал"
+            exit 1
+          fi
+          echo "Секретов в репозитории не найдено"
+
+  desktop-smoke:
+    name: Electron-хост (синтаксис и связка с ядром)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Установка зависимостей desktop
+        working-directory: desktop
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Проверка синтаксиса main/preload/tools
+        working-directory: desktop
+        run: |
+          set -e
+          for file in src/main/*.js src/preload/*.js tools/*.js; do
+            node --check "$file"
+          done
+          echo "Синтаксис desktop в порядке"
+
+      - name: Синхронизация общего интерфейса
+        working-directory: desktop
+        run: node tools/sync-ui.js
+
+      - name: Модули ядра загружаются из main-процесса
+        working-directory: desktop
+        run: |
+          node -e "
+            const core = require('./src/core/mesh-core.js');
+            const service = require('./src/main/mesh-service.js');
+            if (typeof core.MeshClient !== 'function') throw new Error('ядро не загрузилось');
+            if (!core.loginUrl().includes('roleId=1')) throw new Error('ссылка входа неверна');
+            if (typeof service.MeshService !== 'function') throw new Error('сервис не загрузился');
+            console.log('Ядро доступно main-процессу, ссылка входа:', core.loginUrl());
+          "
+
+      - name: Демо-сервис отвечает на запросы состояния
+        working-directory: desktop
+        run: |
+          node -e "
+            const os = require('os');
+            const path = require('path');
+            const { MeshService } = require('./src/main/mesh-service.js');
+            (async () => {
+              const dir = require('fs').mkdtempSync(path.join(os.tmpdir(), 'mesh-'));
+              const service = new MeshService({ dir, demo: true });
+              await service.init();
+              const state = await service.handle('state');
+              if (!state.demo) throw new Error('демо-режим не включился');
+              const token = await service.handle('demoToken');
+              const signed = await service.signIn(token.token);
+              if (!signed.authenticated) throw new Error('вход в демо-режиме не выполнился');
+              const board = await service.handle('rank', { date: '2026-10-12' });
+              if (board.rows.length !== 26) throw new Error('рейтинг пуст');
+              const marks = await service.handle('marks', { from: '2026-09-01', to: '2026-10-12' });
+              if (!marks.marks.length) throw new Error('оценки пусты');
+              service.dispose();
+              console.log('Desktop-сервис: рейтинг и оценки получены в демо-режиме');
+            })().catch((error) => { console.error(error); process.exit(1); });
+          "

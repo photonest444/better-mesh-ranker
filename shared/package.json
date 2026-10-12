@@ -1,0 +1,8 @@
+{
+  "name": "mesh-ranker-shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "description": "Общее ядро и UI для desktop (Electron) и Android (Kotlin/WebView) версий Mesh Ranker",
+  "license": "MIT"
+}

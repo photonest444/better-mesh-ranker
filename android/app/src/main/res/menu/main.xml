@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_refresh"
+        app:showAsAction="never"
+        android:title="@string/menu_refresh" />
+    <item
+        android:id="@+id/action_login"
+        app:showAsAction="never"
+        android:title="@string/menu_login" />
+    <item
+        android:id="@+id/action_refresh_token"
+        app:showAsAction="never"
+        android:title="@string/menu_refresh_token" />
+    <item
+        android:id="@+id/action_demo"
+        android:checkable="true"
+        app:showAsAction="never"
+        android:title="@string/menu_demo" />
+    <item
+        android:id="@+id/action_sign_out"
+        app:showAsAction="never"
+        android:title="@string/menu_sign_out" />
+    <item
+        android:id="@+id/action_open_mesh"
+        app:showAsAction="never"
+        android:title="@string/menu_open_mesh" />
+    <item
+        android:id="@+id/action_about"
+        app:showAsAction="never"
+        android:title="@string/menu_about" />
+</menu>

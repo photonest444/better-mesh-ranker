@@ -1,0 +1,106 @@
+name: Desktop (Windows + Linux)
+
+# Сборка Electron-приложений для Windows и Linux.
+# Артефакты: установщик NSIS, portable-версия (Windows), AppImage и .deb (Linux).
+# При пуше тега v* дополнительно создаётся релиз на GitHub.
+
+on:
+  push:
+    branches: [main, 'arena/**']
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: Windows (NSIS + portable)
+            script: dist:win
+            artifact: mesh-ranker-windows
+            pattern: |
+              desktop/dist/*.exe
+              desktop/dist/*.blockmap
+          - os: ubuntu-latest
+            label: Linux (AppImage + deb)
+            script: dist:linux
+            artifact: mesh-ranker-linux
+            pattern: |
+              desktop/dist/*.AppImage
+              desktop/dist/*.deb
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop/package.json
+
+      - name: Системные пакеты для упаковки (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fakeroot dpkg rpm
+
+      - name: Установка зависимостей
+        working-directory: desktop
+        run: npm install --no-audit --no-fund
+
+      - name: Синхронизация общего интерфейса и ядра
+        working-directory: desktop
+        run: npm run sync
+
+      - name: Проверка синтаксиса
+        working-directory: desktop
+        run: |
+          node --check src/main/main.js
+          node --check src/main/mesh-service.js
+          node --check src/main/mesh-store.js
+          node --check src/main/login-window.js
+          node --check src/main/login-preload.js
+          node --check src/preload/preload.js
+          node --check tools/sync-ui.js
+
+      - name: Сборка приложения (${{ matrix.label }})
+        working-directory: desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npm run ${{ matrix.script }}
+
+      - name: Список собранных файлов
+        working-directory: desktop
+        shell: bash
+        run: ls -la dist || true
+
+      - name: Загрузка артефактов
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.pattern }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Публикация в релиз (только по тегу)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.pattern }}
+          fail_on_unmatched_files: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
