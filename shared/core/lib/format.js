@@ -141,7 +141,8 @@
     var s = value === null || value === undefined ? '' : String(value);
     s = s.replace(/\r?\n/g, ' ');
     if (s.indexOf('"') >= 0) s = s.replace(/"/g, '""');
-    if (s.indexOf(sep) >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0 || /^\s|\s$/.test(s)) {
+    // Кавычим и при запятой: файл открывают в Excel, где разделителем может быть и «;», и «,».
+    if (s.indexOf(sep) >= 0 || s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0 || /^\s|\s$/.test(s)) {
       s = '"' + s + '"';
     }
     return s;

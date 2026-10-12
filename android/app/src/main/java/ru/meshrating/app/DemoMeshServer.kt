@@ -96,13 +96,20 @@ class DemoMeshServer(
 
     private fun generate() {
         val random = Random(seed)
+        val mineIndex = myIndex()
         for (index in 0 until classSize) {
             val female = random.nextBoolean()
             val lastName = SURNAMES[index % SURNAMES.size] + if (female) "а" else ""
             val firstName = (if (female) FIRST_F else FIRST_M)[random.nextInt(if (female) FIRST_F.size else FIRST_M.size)]
             val middleName = (if (female) MIDDLE_F else MIDDLE_M)[random.nextInt(MIDDLE_F.size)]
             val student = Student(
-                personId = "p-%03d-%s".format(index + 1, (index * 7919 % 1000).toString(36)),
+                // «Мой» ученик и брат/сестра опознаются по contingent_guid из профиля:
+                // ровно эти personId приходят потом в запросах ?personId=...
+                personId = when (index) {
+                    mineIndex -> UUID_ME
+                    0 -> UUID_SIBLING
+                    else -> "p-%03d-%s".format(index + 1, (index * 7919 % 1000).toString(36))
+                },
                 lastName = lastName,
                 firstName = firstName,
                 middleName = middleName
@@ -118,7 +125,7 @@ class DemoMeshServer(
             }
             students.add(student)
         }
-        me = students[myIndex()]
+        me = students[mineIndex]
 
         val today = MeshCore.today()
         var cursor = MeshCore.schoolYearStart(today)
@@ -164,6 +171,23 @@ class DemoMeshServer(
     private fun overallAverage(personId: String, toDate: String? = null): Double? {
         val values = averages(personId, null, toDate).values.filterNotNull()
         return if (values.isEmpty()) null else MeshCore.round(values.average(), 2)
+    }
+
+    /**
+     * Тренд карточки предмета или строки рейтинга: «+0.25», «-0.10» или «0.00» —
+     * насколько средний балл вырос (упал) за месяц. Считается по данным, а не
+     * случайно, поэтому таблицы демо-режима всегда одинаковые, а пустая строка
+     * означает «нет данных».
+     */
+    private fun trendText(current: Double?, previous: Double?): String {
+        if (current == null || previous == null) return ""
+        val delta = MeshCore.round(current - previous, 2) ?: return ""
+        val sign = when {
+            delta > 0 -> "+"
+            delta < 0 -> "-"
+            else -> ""
+        }
+        return sign + "%.2f".format(java.util.Locale.ROOT, Math.abs(delta))
     }
 
     // ------------------------------------------------------------------ жизнь ---
@@ -332,10 +356,13 @@ class DemoMeshServer(
                 val personId = params["personId"] ?: UUID_ME
                 val date = params["date"] ?: today
                 val mine = averages(personId, null, date)
+                // тот же период месяц назад — из него считается тренд
+                val before = averages(personId, null, MeshCore.addDays(date, -30))
                 val payload = JSONArray()
                 SUBJECTS.forEach { (id, name) ->
                     val all = students.mapNotNull { averages(it.personId, id, date)[id] }
                     val value = mine[id]
+                    val place = MeshCore.placeOf(all, value)
                     payload.put(
                         JSONObject()
                             .put("subjectId", id)
@@ -344,9 +371,9 @@ class DemoMeshServer(
                                 "rank",
                                 JSONObject()
                                     .put("averageMarkFive", value ?: JSONObject.NULL)
-                                    .put("rankPlace", MeshCore.placeOf(all, value) ?: JSONObject.NULL)
-                                    .put("rankStatus", if (value == null) "NO_DATA" else if ((MeshCore.placeOf(all, value) ?: 99) <= all.size * 0.3) "TOP" else "MIDDLE")
-                                    .put("trend", if (random.nextBoolean()) "+0.25" else "-0.10")
+                                    .put("rankPlace", place ?: JSONObject.NULL)
+                                    .put("rankStatus", if (value == null) "NO_DATA" else if ((place ?: 99) <= all.size * 0.3) "TOP" else "MIDDLE")
+                                    .put("trend", trendText(value, before[id]))
                             )
                             .put("isExam", id == 1 || id == 3)
                     )
@@ -377,7 +404,7 @@ class DemoMeshServer(
                                     .put("averageMarkFive", value ?: JSONObject.NULL)
                                     .put("rankPlace", MeshCore.placeOf(currentValues, value) ?: JSONObject.NULL)
                                     .put("rankStatus", if ((MeshCore.placeOf(currentValues, value) ?: 99) <= 5) "TOP" else "MIDDLE")
-                                    .put("trend", "%.2f".format((value ?: 0.0) - (before ?: 0.0)))
+                                    .put("trend", trendText(value, before))
                             )
                             .put(
                                 "previousRank",

@@ -1,11 +1,11 @@
 package ru.meshrating.app
 
-import org.junit.AfterClass
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
-import org.junit.BeforeClass
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -14,22 +14,23 @@ import org.junit.Test
  */
 class MeshClientTest {
 
-    companion object {
-        private lateinit var server: DemoMeshServer
-        private var port = 0
+    private lateinit var server: DemoMeshServer
+    private var port = 0
 
-        @BeforeClass
-        @JvmStatic
-        fun start() {
-            server = DemoMeshServer(seed = 7L, classSize = 26, tokenLifetime = 2)
-            port = server.start()
-        }
+    /**
+     * Свежий сервер на каждый тест: демо-токен живёт только tokenLifetime
+     * запросов, поэтому общий сервер делал бы тесты зависимыми от порядка
+     * запуска (после первых двух запросов вход по демо-токену уже не проходит).
+     */
+    @Before
+    fun start() {
+        server = DemoMeshServer(seed = 7L, classSize = 26, tokenLifetime = 2)
+        port = server.start()
+    }
 
-        @AfterClass
-        @JvmStatic
-        fun stop() {
-            server.stop()
-        }
+    @After
+    fun stop() {
+        server.stop()
     }
 
     private fun client(token: String? = DemoMeshServer.DEMO_TOKEN, profileId: String? = null, onToken: ((String) -> Unit)? = null) =

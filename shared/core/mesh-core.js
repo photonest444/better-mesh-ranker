@@ -111,6 +111,7 @@
 
   var TOKEN_KEY_RE = /^(token|access_token|accessToken|auth_token|authToken|auth-token|bearer|jwt)$/i;
   var JWT_RE = /eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}/;
+  var JWT_FULL_RE = /^eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}$/;
   var OPAQUE_RE = /^[A-Za-z0-9._~+/=-]{24,}$/;
 
   /** Похоже ли значение на токен МЭШ (JWT или длинная случайная строка). */
@@ -119,6 +120,19 @@
     var s = value.trim();
     if (s.length < 20 || /\s/.test(s)) return false;
     if (JWT_RE.test(s)) return true;
+    return OPAQUE_RE.test(s) && /[A-Za-z]/.test(s) && /\d/.test(s);
+  }
+
+  /**
+   * Строка целиком — это токен (а не текст, внутри которого он встречается).
+   * Нужно при разборе ответов входа: JSON/HTML с токеном внутри не должен
+   * приниматься за сам токен.
+   */
+  function isWholeToken(value) {
+    if (typeof value !== 'string') return false;
+    var s = value.trim();
+    if (s.length < 20 || /\s/.test(s)) return false;
+    if (JWT_FULL_RE.test(s)) return true;
     return OPAQUE_RE.test(s) && /[A-Za-z]/.test(s) && /\d/.test(s);
   }
 
@@ -151,8 +165,8 @@
     if (!text) return null;
     var s = String(text).trim();
     if (!s) return null;
-    // 1) тело целиком — это токен
-    if (looksLikeToken(s)) return s;
+    // 1) тело целиком — это токен (строго: JWT целиком, а не текст с токеном внутри)
+    if (isWholeToken(s)) return s;
     // 2) JSON или HTML с ключами token/access_token/...
     try {
       var parsed = JSON.parse(s);
@@ -875,6 +889,7 @@
     baseHeaders: baseHeaders,
     authHeaders: authHeaders,
     looksLikeToken: looksLikeToken,
+    isWholeToken: isWholeToken,
     extractToken: extractToken,
     extractLooseToken: extractLooseToken,
     extractTokenFromText: extractTokenFromText,
