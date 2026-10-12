@@ -165,9 +165,14 @@ class MeshService extends EventEmitter {
   async signIn(token) {
     const candidate = MeshCore.extractToken(token) || String(token || '').trim();
     if (!candidate) throw Object.assign(new Error('Пустой токен'), { code: 'bad-token' });
-    if (!MeshCore.looksLikeToken(candidate)) throw Object.assign(new Error('Значение не похоже на токен МЭШ'), { code: 'bad-token' });
 
     const client = this.createClient(candidate, null);
+    // Демо-режим работает с локальным мок-сервером, где токены короткие («mock-token-1»),
+    // поэтому строгую проверку формата ослабляем так же, как это делает сам клиент.
+    if (!MeshCore.looksLikeToken(candidate) && !client.allowLooseToken) {
+      throw Object.assign(new Error('Значение не похоже на токен МЭШ'), { code: 'bad-token' });
+    }
+
     const profile = await client.fetchProfile();
     const child = profile.defaultChild;
     this.client = client;

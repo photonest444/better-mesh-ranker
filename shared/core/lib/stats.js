@@ -82,13 +82,19 @@
     var hi = to === undefined ? 5 : to;
     var s = step || 0.5;
     var buckets = [];
-    for (var v = hi; v >= lo - 1e-9; v -= s) {
-      var upper = v + s;
+    if (s <= 0) return buckets;
+    // Последний интервал начинается в hi - s: иначе появляется пустая корзина «hi–hi».
+    for (var v = hi - s; v >= lo - 1e-9; v -= s) {
+      var upper = Math.min(v + s, hi);
+      var isTop = upper >= hi - 1e-9;
       buckets.push({
         from: util.round(v, 2),
-        to: util.round(Math.min(upper, hi), 2),
-        label: util.round(v, 1) + '–' + util.round(Math.min(upper, hi), 1),
-        count: list.filter(function (n) { return n >= v - 1e-9 && n < upper - 1e-9; }).length
+        to: util.round(upper, 2),
+        label: util.round(v, 1) + '–' + util.round(upper, 1),
+        count: list.filter(function (n) {
+          if (n < v - 1e-9) return false;
+          return isTop ? n <= upper + 1e-9 : n < upper - 1e-9;
+        }).length
       });
     }
     return buckets;

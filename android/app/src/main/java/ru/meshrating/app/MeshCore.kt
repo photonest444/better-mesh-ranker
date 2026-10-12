@@ -95,6 +95,7 @@ object MeshCore {
     private val TOKEN_KEY_RE =
         Regex("^(token|access_token|accessToken|auth_token|authToken|auth-token|bearer|jwt)$", RegexOption.IGNORE_CASE)
     private val JWT_RE = Regex("eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}")
+    private val JWT_FULL_RE = Regex("^eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{5,}$")
     private val OPAQUE_RE = Regex("^[A-Za-z0-9._~+/=-]{24,}$")
 
     /** Похоже ли значение на токен МЭШ (JWT или длинная строка). */
@@ -102,6 +103,18 @@ object MeshCore {
         val text = value?.trim() ?: return false
         if (text.length < 20 || text.any { it.isWhitespace() }) return false
         if (JWT_RE.containsMatchIn(text)) return true
+        return OPAQUE_RE.matches(text) && text.any { it.isLetter() } && text.any { it.isDigit() }
+    }
+
+    /**
+     * Строка целиком — это токен (а не текст, внутри которого он встречается).
+     * Нужно при разборе ответов входа: JSON/HTML с токеном внутри не должен
+     * приниматься за сам токен.
+     */
+    fun isWholeToken(value: String?): Boolean {
+        val text = value?.trim() ?: return false
+        if (text.length < 20 || text.any { it.isWhitespace() }) return false
+        if (JWT_FULL_RE.matches(text)) return true
         return OPAQUE_RE.matches(text) && text.any { it.isLetter() } && text.any { it.isDigit() }
     }
 
@@ -134,7 +147,7 @@ object MeshCore {
     fun extractTokenFromText(text: String?): String? {
         val source = text?.trim() ?: return null
         if (source.isEmpty()) return null
-        if (looksLikeToken(source)) return source
+        if (isWholeToken(source)) return source
         runCatching { extractTokenFromJson(JSONObject(source)) }.getOrNull()?.let { return it }
         runCatching { extractTokenFromJson(JSONArray(source)) }.getOrNull()?.let { return it }
         Regex("\"(?:token|access_token|accessToken|auth_token|authToken)\"\\s*[:=]\\s*\"([^\"]{16,})\"", RegexOption.IGNORE_CASE)
@@ -299,15 +312,18 @@ object MeshCore {
     /** Гистограмма средних баллов класса (по умолчанию 2.0 … 5.0 шагом 0.5). */
     fun histogram(values: List<Double>, from: Double = 2.0, to: Double = 5.0, step: Double = 0.5): JSONArray {
         val buckets = JSONArray()
-        var edge = to
+        if (step <= 0) return buckets
+        // Последний интервал начинается в to - step: иначе появляется пустая корзина «to–to».
+        var edge = to - step
         while (edge >= from - 1e-9) {
-            val upper = edge + step
-            val count = values.count { it >= edge - 1e-9 && it < upper - 1e-9 }
+            val upper = minOf(edge + step, to)
+            val isTop = upper >= to - 1e-9
+            val count = values.count { it >= edge - 1e-9 && (if (isTop) it <= upper + 1e-9 else it < upper - 1e-9) }
             buckets.put(
                 JSONObject()
                     .put("from", round(edge, 2))
-                    .put("to", round(minOf(upper, to), 2))
-                    .put("label", "${round(edge, 1)}–${round(minOf(upper, to), 1)}")
+                    .put("to", round(upper, 2))
+                    .put("label", "${round(edge, 1)}–${round(upper, 1)}")
                     .put("count", count)
             )
             edge -= step
