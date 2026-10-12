@@ -119,13 +119,22 @@ cd android
 
 ## Как это собирается в CI
 
+Workflow-файлы лежат в `ci/` (обычные файлы, всегда в git) и устанавливаются
+в `.github/workflows/` одной командой:
+
+```bash
+bash scripts/enable-ci.sh && git add .github/workflows && git commit -m "CI" && git push
+```
+
 | Workflow | Что делает |
 | --- | --- |
-| `.github/workflows/ci.yml` | проверка синтаксиса, `node --test tests/`, дымовой тест полного пути пользователя, проверка main-процесса Electron, поиск случайно закоммиченных токенов |
-| `.github/workflows/desktop.yml` | сборка Windows (NSIS + portable) и Linux (AppImage + deb), артефакты + публикация в релиз по тегу `v*` |
-| `.github/workflows/android.yml` | JVM-тесты ядра, `assembleDebug`, `assembleRelease`, артефакты APK |
+| `ci/ci.yml` | проверка синтаксиса, `node --test tests/`, дымовой тест полного пути пользователя, проверка main-процесса Electron, поиск случайно закоммиченных токенов |
+| `ci/desktop.yml` | сборка Windows (NSIS + portable) и Linux (AppImage + deb), артефакты + публикация в релиз по тегу `v*` |
+| `ci/android.yml` | JVM-тесты ядра, `assembleDebug`, `assembleRelease`, артефакты APK |
 
 По тегу вида `v1.0.0` все артефакты автоматически попадают в GitHub Release.
+Подробности и причина, по которой файлы лежат в `ci/`, — в
+[docs/CI-SETUP.md](docs/CI-SETUP.md).
 
 ## Безопасность и приватность
 
