@@ -443,7 +443,10 @@ pub fn deadlines(homeworks: &[Homework], reference: &str) -> Json {
     let mut undone = 0usize;
     let mut done = 0usize;
     let mut overdue = 0usize;
+    // Самое срочное несданное задание (просроченное — самое срочное) и
+    // ближайшее из ещё не просроченных: в интерфейсе это две разные подсказки.
     let mut next: Option<Homework> = None;
+    let mut next_upcoming: Option<Homework> = None;
 
     for homework in homeworks {
         if homework.is_done {
@@ -480,6 +483,19 @@ pub fn deadlines(homeworks: &[Homework], reference: &str) -> Json {
             };
             if candidate_is_closer {
                 next = Some(homework.clone());
+            }
+            if bucket == 1 || bucket == 2 || bucket == 3 {
+                let upcoming_is_closer = match (&next_upcoming, &homework.due_date) {
+                    (None, _) => true,
+                    (Some(current), Some(due)) => match &current.due_date {
+                        Some(current_due) => due < current_due,
+                        None => true,
+                    },
+                    _ => false,
+                };
+                if upcoming_is_closer {
+                    next_upcoming = Some(homework.clone());
+                }
             }
         }
         groups[bucket].2.push(homework.to_json());
@@ -525,6 +541,13 @@ pub fn deadlines(homeworks: &[Homework], reference: &str) -> Json {
         (
             "next",
             match next {
+                Some(homework) => homework.to_json(),
+                None => Json::Null,
+            },
+        ),
+        (
+            "nextUpcoming",
+            match next_upcoming {
                 Some(homework) => homework.to_json(),
                 None => Json::Null,
             },
@@ -728,7 +751,13 @@ mod tests {
         assert_eq!(count_of("no-deadline"), 1);
         assert_eq!(count_of("done"), 1);
         assert_eq!(
+            // Самое срочное несданное — просроченное (История, 10 октября).
             report.get_path("next.subjectName").map(Json::text),
+            Some("История".to_string())
+        );
+        assert_eq!(
+            // А это ближайшее из ещё не просроченных (Алгебра, 13 октября).
+            report.get_path("nextUpcoming.subjectName").map(Json::text),
             Some("Алгебра".to_string())
         );
     }

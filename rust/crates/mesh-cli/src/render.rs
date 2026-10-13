@@ -332,21 +332,27 @@ pub fn deadlines(report: &Json, style: &Style) {
             style.dim("0")
         }
     );
-    if let Some(next) = report.get("next") {
-        if !next.is_null() {
-            println!(
-                "{} {} — {}{}",
-                style.bold("Ближайшее:"),
-                next.get("subjectName").map(Json::text).unwrap_or_default(),
-                next.get("dueDate").map(Json::text).unwrap_or_default(),
-                if next.get("description").map(Json::text).unwrap_or_default().is_empty() {
-                    String::new()
-                } else {
-                    format!(" · {}", format::truncate(&next.get("description").map(Json::text).unwrap_or_default(), 70))
-                }
-            );
-        }
-    }
+    // «Самое срочное» — включая просроченное; «ближайшее» — из тех, что ещё не сгорели.
+    let homework_line = |label: &str, item: Option<&Json>| {
+        let item = match item {
+            Some(value) if !value.is_null() => value,
+            _ => return,
+        };
+        let description = item.get("description").map(Json::text).unwrap_or_default();
+        println!(
+            "{} {} — {}{}",
+            style.bold(label),
+            item.get("subjectName").map(Json::text).unwrap_or_default(),
+            item.get("dueDate").map(Json::text).unwrap_or_default(),
+            if description.is_empty() {
+                String::new()
+            } else {
+                format!(" · {}", format::truncate(&description, 70))
+            }
+        );
+    };
+    homework_line("Самое срочное:", report.get("next"));
+    homework_line("Ближайшее:", report.get("nextUpcoming"));
     let groups = report.get("groups").and_then(Json::as_arr).unwrap_or(&[]);
     for group in groups {
         let count = group.get("count").and_then(Json::as_i64).unwrap_or(0);

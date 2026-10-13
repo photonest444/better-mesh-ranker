@@ -223,13 +223,15 @@ pub fn normalize_homework(raw: &Json) -> Homework {
             value
         }
     };
-    let due_raw = text(raw, &["date_prepared", "deadline", "due_date"]);
+    // Ключи «сырого» ответа МЭШ и уже нормализованных объектов JS-ядра:
+    // мост принимает и то и другое (нужно для ускорителя из браузера/Electron).
+    let due_raw = text(raw, &["date_prepared", "deadline", "due_date", "dueDate"]);
     let due_date = if due_raw.trim().is_empty() {
         None
     } else {
         Some(util::to_iso(&due_raw))
     };
-    let assigned_raw = text(raw, &["date_assigned_on", "date"]);
+    let assigned_raw = text(raw, &["date_assigned_on", "date", "assignedOn"]);
     let attachments = match raw.get("attachments").or_else(|| raw.get("files")) {
         Some(Json::Arr(items)) => items.clone(),
         _ => Vec::new(),
@@ -355,6 +357,22 @@ fn short_time(value: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn homework_accepts_js_normalized_shape() {
+        // Так выглядит задание после JS-нормализатора (camelCase).
+        let raw = Json::parse(
+            r#"{"id":"h1","subjectId":"s1","subjectName":"Физика","description":"Параграф 12",
+                "assignedOn":"2026-10-10","dueDate":"2026-10-14","isDone":false}"#,
+        )
+        .expect("json");
+        let homework = normalize_homework(&raw);
+        assert_eq!(homework.id, "h1");
+        assert_eq!(homework.subject_name, "Физика");
+        assert_eq!(homework.due_date.as_deref(), Some("2026-10-14"));
+        assert_eq!(homework.assigned_on, "2026-10-10");
+        assert!(!homework.is_done);
+    }
 
     #[test]
     fn profile_is_normalized() {
