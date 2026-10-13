@@ -11,7 +11,9 @@
 
 Все три реализации используют **одно и то же ядро** (`shared/core/mesh-core.js` и его
 Kotlin-порт `MeshCore.kt`), поэтому разбор данных и автообновление токена совпадают
-до формулировок.
+до формулировок. У «горячих» вычислений (рейтинг, сводки, прогноз, дедлайны, CSV) есть
+вторая, нативная реализация на Rust — `mesh-rank serve`; интерфейс общается с ней через
+`shared/core/native.js` и `shared/core/accelerate.js` (см. раздел «Нативное ядро»).
 
 ## Формат вызова
 
@@ -62,6 +64,8 @@ Kotlin-порт `MeshCore.kt`), поэтому разбор данных и ав
 | `saveFile` | `{ fileName, text }` | `{ saved, filePath }` |
 | `ping` | — | `{ ok }` |
 | `loginUrl` | — | `{ url }` |
+| `native` | — | `{ available, engine, version, methods, calls, errors, reason }` — состояние нативного ядра |
+| `bench` | `{ rows, iterations, marks }` | `{ engine, js, rust, speedup, note }` — сравнение скорости JS и Rust |
 
 ## Состояние сессии (`state`)
 
@@ -139,3 +143,79 @@ Kotlin-порт `MeshCore.kt`), поэтому разбор данных и ав
 `Profile-Id: <id ученика>`.
 
 Ответ 401 → автоматическое продление токена и один повтор запроса.
+
+## Нативное ядро (Rust): `mesh-rank`
+
+Тот же контракт, но реализованный на Rust без внешних зависимостей
+(`rust/crates/mesh-core` + `rust/crates/mesh-cli`). Используется как:
+
+1. **CLI** — `mesh-rank selftest`, `rank`, `subjects`, `marks`, `homeworks`,
+   `schedule`, `insights`, `history`, `csv`, `bench`, `state`, `token`;
+2. **мост для Node** — `mesh-rank serve`: одна строка JSON на запрос.
+
+### Протокол JSON-lines
+
+```text
+→ {"id":1,"method":"rank.build","params":{"members":[…],"names":{…},"meId":"uuid"}}
+← {"id":1,"ok":true,"result":{"rows":[…],"summary":{…}}}
+← {"id":1,"ok":false,"error":{"code":"unknown-method","message":"Неизвестный метод: …"}}
+```
+
+- `id` возвращается как есть (в приложении это `js<N>`);
+- пустая строка игнорируется, битая JSON-строка даёт `bad-json` и процесс продолжает работу;
+- `shutdown`/`exit` (или закрытие stdin) корректно завершают процесс;
+- в stdout попадают **только** JSON-ответы, диагностика идёт в stderr.
+
+### Методы
+
+| Метод | Параметры | Результат |
+| --- | --- | --- |
+| `hello` | — | `{ name, engine:"rust", version, methods:[34], transport, loginUrl, protocol }` |
+| `state` | — | состояние сессии (как в платформенном контракте) |
+| `signIn` / `signOut` / `refreshToken` / `selectStudent` | как у платформы | состояние сессии |
+| `profile` / `subjects` / `subjectMarks` / `rank` / `marks` / `homeworks` / `schedule` / `names` / `ping` | как у платформы | те же структуры, что и в JS-ядре |
+| `token.describe` | `{ token }` | `{ present, kind, mask, expiresAt, expired, … }` |
+| `token.extract` | `{ text }` | `{ token }` |
+| `stats.describe` | `{ values:[…] }` | `{ count, mean, median, min, max, stdDev, p25, p75 }` |
+| `rank.build` | `{ members, names, meId, date, subjectId, subjectName }` | `{ rows, summary }` (форма — как в разделе «Таблица рейтинга») |
+| `marks.summarize` | `{ marks }` | `{ marks, summary }` |
+| `homeworks.normalize` / `schedule.normalize` | `{ payload }` | `{ homeworks }` / `{ lessons }` |
+| `homeworks.deadlines` | `{ homeworks }` или `{ payload }`, `reference` | `{ reference, total, done, undone, overdue, progress, groups, byDay, next, nextUpcoming }` |
+| `insights.history` | `{ snapshots, subjectId }` | серия: `{ count, points, placeDelta, averageDelta, bestPlace, sparkline, placeSparkline, trend, improved }` |
+| `insights.forecast` | `{ marks, target, remaining }` | `{ status: done/achievable/unreachable, fivesNeeded, neededAverage, maxPossible, average, weightedAverage, gap, text }` |
+| `insights.whatIf` | `{ marks, extra:[…] }` | `{ before, after, delta, count, added }` |
+| `insights.impact` | `{ marks, limit }` | `[ { subjectId, subjectName, count, average, deltaIfFive, share } ]` |
+| `csv.rank` / `csv.marks` | `{ rows | members, names, meId, title }` / `{ marks, title }` | `{ csv, rows, bytes }` (BOM, `;`, CRLF — Excel открывает без вопросов) |
+| `history.list` / `history.append` / `history.clear` | — / снимок / — | `{ count, snapshots }` / `{ added, count }` / `{ cleared }` |
+| `cache.stats` | — | `{ requests, cache, names }` |
+| `bench` | `{ students, marks, iterations }` | `{ students, iterations, checksum, timings: { buildMs, serializeMs, parseMs, rankTableMs, rankTablePerSecond, marksSummaryMs, jsonStringifyMs, csvMs, describeMs } }` |
+
+### Как приложение это использует
+
+- `shared/core/native.js` — ищет бинарник (`desktop/bin`, `rust/target/{release,debug}`,
+  `MESH_RANKER_RUST_BIN`, `PATH`), запускает `serve`, делает рукопожатие и помнит состояние;
+  при любой проблеме (нет бинарника, ошибка, таймаут) вызовы не выполняются, а интерфейс
+  продолжает работать на JS;
+- `shared/core/accelerate.js` — обёртка с деградацией: `run(method, params, localFn)`
+  возвращает `{ value, engine, ms, fallback }`; счётчики (`nativeCalls`, `fallbacks`,
+  оценка сэкономленных миллисекунд) показываются в настройках;
+- `shared/core/bench-compare.js` — замер «JS против Rust» на одинаковых данных:
+  `{ engine, js: { perOpMs, opsPerSecond }, rust: { perOpMs, opsPerSecond, timings }, speedup, note }`.
+
+### Мост в веб-версии
+
+`tools/preview-server.js` отдаёт состояние движка и замер по REST:
+
+```text
+GET /api/native                          → { available, engine, version, reason, … }
+GET /api/bench?rows=26&iterations=200    → { engine, js, rust, speedup, note }
+```
+
+### Проверки
+
+- `mesh-rank selftest` — 12 офлайн-проверок (без сети);
+- `node tools/mock-mesh-rank.js` — эталонная JS-реализация того же протокола;
+- `node tools/check-rust-bridge.js` — запускает настоящий бинарник через мост и сверяет
+  ответы с эталоном: рейтинг, оценки, прогноз, влияние, дедлайны, CSV, бенчмарк (18 проверок);
+- `tests/native-bridge.test.js` — протокол, таймауты, ошибки и деградация к JS
+  (на мок-бинарнике, поэтому Rust для этих тестов не нужен).

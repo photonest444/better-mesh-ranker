@@ -31,8 +31,18 @@
 **Профиль** — переключение ученика (если детей несколько), состояние токена (маска, срок действия, хранилище),
 экспорт профиля в JSON, выход с удалением токена.
 
+**Прогноз и динамика** — прогноз до цели (какой средний балл нужен, сколько «пятёрок» осталось,
+достижима ли цель вообще), «а что если» с новыми оценками, влияние предметов (по какому предмету
+одна «пятёрка» даст наибольший прирост), дедлайны и нагрузка на две недели, снимки места и балла
+со спарклайном, дельтами и экспортом/импортом истории.
+
+**Поиск по приложению (Ctrl+K)** — одна строка, чтобы попасть на вкладку, к предмету, к другому
+ученику или сразу выполнить действие (обновить, сохранить снимок, экспорт, настройки, выход).
+
 **Настройки** — тема (авто/тёмная/светлая), строк на странице, компактные таблицы, гистограмма,
 автообновление данных, автоматическое продление токена, сброс настроек, краткий отчёт о приватности.
+Плюс раздел «Производительность»: какой движок считает данные (Rust или JS), замер скорости и
+сравнение с JS-ядром на тех же данных.
 
 ## Вход в МЭШ: автоматически и один раз
 
@@ -60,8 +70,14 @@
 ranker.py                исходный CLI-скрипт (остаётся как есть)
 shared/                  общий код для всех платформ
   core/mesh-core.js        протокол МЭШ: адреса, заголовки, разбор, автообновление токена
-  core/lib/                утилиты, статистика, форматирование, таблицы
-  ui/                      интерфейс: вкладки, таблицы, экран входа, стили (без фреймворков)
+  core/lib/                утилиты, статистика, форматирование, таблицы, аналитика (insights.js)
+  core/native.js           мост к нативному ядру на Rust (JSON-lines), в браузере — заглушка
+  core/accelerate.js       ускоритель: считает на Rust, при любой проблеме возвращается к JS
+  core/bench-compare.js    замер: JS против Rust на одних данных (раздел «Производительность»)
+  ui/                      интерфейс: вкладки, таблицы, палитра команд, экран входа, стили
+rust/                    нативное ядро и CLI (без внешних зависимостей)
+  crates/mesh-core/        протокол МЭШ, рейтинг, статистика, аналитика, HTTP, кэши, мост
+  crates/mesh-cli/         бинарник mesh-rank: CLI и мост `serve` для Node
 desktop/                 Electron (Windows, Linux)
   src/main/                главный процесс: IPC, окна, хранилище токена, окно входа
   src/preload/             мост contextBridge (window.meshDesktop)
@@ -79,9 +95,10 @@ android/                 Kotlin-приложение
     TokenRefreshWorker.kt    фоновое продление сессии
     DemoMeshServer.kt        локальный демо-МЭШ
   app/src/test/            JVM-тесты ядра и клиента (без эмулятора)
-tools/                   mock-mesh-server.js (мок МЭШ), preview-server.js (веб-версия), smoke-preview.js
-tests/                   модульные тесты ядра (node:test)
-docs/                    API-CONTRACT.md, BUILD.md
+tools/                   mock-mesh-server.js (мок МЭШ), preview-server.js (веб-версия), smoke-preview.js,
+                         mock-mesh-rank.js (эталон протокола моста), check-rust-bridge.js (сверка JS и Rust)
+tests/                   модульные тесты ядра, аналитики и моста (node:test)
+docs/                    API-CONTRACT.md, BUILD.md, CI-SETUP.md
 .github/workflows/       CI, сборка Windows/Linux, сборка APK
 ```
 
@@ -105,6 +122,37 @@ npm run dist:win   # установщик NSIS + portable (Windows)
 npm run dist:linux # AppImage + .deb (Linux)
 ```
 
+### Нативное ядро на Rust (быстрые расчёты; необязательно)
+
+Всё приложение работает и без него — на JS. Ядро на Rust включается, если рядом есть
+собранный бинарник: рейтинг, сводки, прогноз, дедлайны и CSV считаются на нём, а при любой
+ошибке вычисления молча возвращаются к JS.
+
+```bash
+cd rust
+cargo test                                        # тесты ядра и CLI, без сети
+cargo build --release                             # rust/target/release/mesh-rank
+./target/release/mesh-rank selftest               # самопроверка (12 проверок)
+./target/release/mesh-rank rank --demo --top 10   # рейтинг класса в терминале
+./target/release/mesh-rank insights --target 4.5 --remaining 3
+./target/release/mesh-rank bench --students 26 --iterations 500
+./target/release/mesh-rank serve                  # мост JSON-lines для приложения
+```
+
+Положить ядро в настольное приложение (Windows/Linux) и проверить скорость:
+
+```bash
+cd desktop
+npm run rust        # сборка rust/ → desktop/bin/mesh-rank (в упаковку попадает автоматически)
+npm run rust:check  # только проверить, есть ли cargo
+```
+
+Сверка «Rust ↔ JS» на одинаковых данных (в CI выполняется автоматически):
+
+```bash
+node tools/check-rust-bridge.js
+```
+
 ### Android
 
 ```bash
@@ -126,15 +174,19 @@ Workflow-файлы лежат в `ci/` (обычные файлы, всегда
 bash scripts/enable-ci.sh && git add .github/workflows && git commit -m "CI" && git push
 ```
 
+Так сделано потому, что GitHub не даёт менять `.github/workflows` токенам без права
+`workflows`. Подробности — в [docs/CI-SETUP.md](docs/CI-SETUP.md).
+
 | Workflow | Что делает |
 | --- | --- |
-| `ci/ci.yml` | проверка синтаксиса, `node --test tests/`, дымовой тест полного пути пользователя, статическая проверка Android-ресурсов (`tools/validate-android.js`), проверка main-процесса Electron, поиск случайно закоммиченных токенов |
-| `ci/desktop.yml` | сборка Windows (NSIS + portable) и Linux (AppImage + deb), артефакты + публикация в релиз по тегу `v*` |
-| `ci/android.yml` | JVM-тесты ядра, `assembleDebug`, `assembleRelease`, артефакты APK |
+| `ci.yml` (job `core-and-ui`) | проверка синтаксиса всех JS-файлов, `node --test tests/*.test.js`, дымовой тест полного пути пользователя (34 проверки), статическая проверка Android-ресурсов, поиск случайно закоммиченных токенов |
+| `ci.yml` (job `rust-core`) | `cargo test`, сборка release, самопроверка `mesh-rank selftest`, бенчмарк ядра и сверка моста Node ↔ Rust с JS-эталоном |
+| `ci.yml` (job `desktop-smoke`) | сборка нативного ядра в `desktop/bin`, проверка main-процесса Electron, демо-сервис: рейтинг, оценки и замер «JS против Rust» |
+| `desktop.yml` | сборка Windows (NSIS + portable) и Linux (AppImage + deb) вместе с нативным ядром, артефакты + публикация в релиз по тегу `v*` |
+| `android.yml` | JVM-тесты ядра, `assembleDebug`, `assembleRelease`, артефакты APK |
 
-По тегу вида `v1.0.0` все артефакты автоматически попадают в GitHub Release.
-Подробности и причина, по которой файлы лежат в `ci/`, — в
-[docs/CI-SETUP.md](docs/CI-SETUP.md).
+По тегу вида `v1.1.0` все артефакты автоматически попадают в GitHub Release.
+Подробности — в [docs/CI-SETUP.md](docs/CI-SETUP.md).
 
 ## Безопасность и приватность
 

@@ -1,0 +1,194 @@
+name: CI
+
+# Проверки ядра и интерфейса: синтаксис, модульные тесты, дымовой тест приложения.
+# Сборки приложений живут в desktop.yml и android.yml.
+
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core-and-ui:
+    name: Ядро, интерфейс и тесты
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Проверка синтаксиса всех JS-файлов
+        run: |
+          set -e
+          count=0
+          while IFS= read -r file; do
+            node --check "$file"
+            count=$((count + 1))
+          done < <(find shared tools tests -name '*.js' -not -path '*/node_modules/*')
+          echo "Проверено файлов: $count"
+
+      - name: Модульные тесты ядра и аналитики (node:test)
+        run: node --test tests/*.test.js
+
+      - name: Дымовой тест приложения (демо-режим, полный путь пользователя)
+        run: node tools/smoke-preview.js
+
+      - name: Проверка Android-ресурсов (без сборки: строки, цвета, темы, манифест)
+        run: node tools/validate-android.js
+
+      - name: Проверка, что в репозиторий не попали токены и кэши
+        run: |
+          set -e
+          for forbidden in school-mos-ru.json users_cache.json .preview/session.json; do
+            if git ls-files --error-unmatch "$forbidden" >/dev/null 2>&1; then
+              echo "::error::В репозитории найден файл с токеном: $forbidden"
+              exit 1
+            fi
+          done
+          if git grep -In -E 'eyJhbGciOiJ[A-Za-z0-9_-]{10,}\.' -- . ':!*.md' ':!tests' ':!tools' | head -5; then
+            echo "::error::В коде найден похожий на токен JWT-литерал"
+            exit 1
+          fi
+          echo "Секретов в репозитории не найдено"
+
+  rust-core:
+    name: Нативное ядро (Rust): тесты, самопроверка, мост
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Кэш cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('rust/**/Cargo.toml') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Тесты ядра и CLI (cargo test)
+        run: cargo test --workspace --manifest-path rust/Cargo.toml
+
+      - name: Сборка release
+        run: cargo build --release --manifest-path rust/Cargo.toml
+
+      - name: Самопроверка бинарника (офлайн, без сети)
+        run: ./rust/target/release/mesh-rank selftest
+
+      - name: Бенчмарк ядра (не должен падать и должен быть быстрым)
+        run: ./rust/target/release/mesh-rank bench --students 26 --iterations 200 --json | head -c 600
+
+      - name: Мост Node ↔ Rust: протокол и совпадение с JS-ядром
+        run: node tools/check-rust-bridge.js
+
+  desktop-smoke:
+    name: Electron-хост (синтаксис и связка с ядром)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Установка зависимостей desktop
+        working-directory: desktop
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Проверка синтаксиса main/preload/tools
+        working-directory: desktop
+        run: |
+          set -e
+          for file in src/main/*.js src/preload/*.js tools/*.js; do
+            node --check "$file"
+          done
+          echo "Синтаксис desktop в порядке"
+
+      - name: Rust (stable) — нативное ядро для приложения
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Сборка нативного ядра в desktop/bin
+        working-directory: desktop
+        run: |
+          node tools/build-rust.js --required
+          ls -la bin/
+
+      - name: Модули ядра загружаются из main-процесса
+        working-directory: desktop
+        run: |
+          node -e "
+            const core = require('./src/core/mesh-core.js');
+            const service = require('./src/main/mesh-service.js');
+            if (typeof core.MeshClient !== 'function') throw new Error('ядро не загрузилось');
+            if (!core.loginUrl().includes('roleId=1')) throw new Error('ссылка входа неверна');
+            if (typeof service.MeshService !== 'function') throw new Error('сервис не загрузился');
+            console.log('Ядро доступно main-процессу, ссылка входа:', core.loginUrl());
+          "
+
+      - name: Приложение видит нативное ядро и замеряет его
+        working-directory: desktop
+        run: |
+          node -e "
+            const { MeshService } = require('./src/main/mesh-service.js');
+            (async () => {
+              const dir = require('fs').mkdtempSync(require('path').join(require('os').tmpdir(), 'mesh-rust-'));
+              const service = new MeshService({ dir, demo: true });
+              await service.init();
+              const native = await service.handle('native');
+              if (!native.available) throw new Error('нативное ядро не найдено: ' + JSON.stringify(native));
+              const bench = await service.handle('bench', { rows: 26, iterations: 100 });
+              if (bench.engine !== 'rust' || !bench.rust) throw new Error('замер не ушёл в Rust: ' + JSON.stringify(bench).slice(0, 200));
+              console.log('Rust-ядро:', native.version, '| оп/с:', bench.rust.opsPerSecond, '| ускорение:', bench.speedup);
+              service.dispose();
+            })().catch((error) => { console.error(error); process.exit(1); });
+          "
+
+      - name: Демо-сервис отвечает на запросы состояния
+        working-directory: desktop
+        run: |
+          node -e "
+            const os = require('os');
+            const path = require('path');
+            const { MeshService } = require('./src/main/mesh-service.js');
+            (async () => {
+              const dir = require('fs').mkdtempSync(path.join(os.tmpdir(), 'mesh-'));
+              const service = new MeshService({ dir, demo: true });
+              await service.init();
+              const state = await service.handle('state');
+              if (!state.demo) throw new Error('демо-режим не включился');
+              const token = await service.handle('demoToken');
+              const signed = await service.signIn(token.token);
+              if (!signed.authenticated) throw new Error('вход в демо-режиме не выполнился');
+              const board = await service.handle('rank', { date: '2026-10-12' });
+              if (board.rows.length !== 26) throw new Error('рейтинг пуст');
+              const marks = await service.handle('marks', { from: '2026-09-01', to: '2026-10-12' });
+              if (!marks.marks.length) throw new Error('оценки пусты');
+              service.dispose();
+              console.log('Desktop-сервис: рейтинг и оценки получены в демо-режиме');
+            })().catch((error) => { console.error(error); process.exit(1); });
+          "

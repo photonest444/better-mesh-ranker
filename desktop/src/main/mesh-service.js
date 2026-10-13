@@ -38,6 +38,9 @@ function resolveCore(relative) {
 }
 
 const MeshCore = resolveCore('mesh-core.js');
+// Мост к нативному ядру на Rust (необязательный ускоритель) и замер скорости.
+const NativeBridge = resolveCore('native.js');
+const BenchCompare = resolveCore('bench-compare.js');
 
 class MeshService extends EventEmitter {
   constructor(options) {
@@ -294,6 +297,25 @@ class MeshService extends EventEmitter {
     return { token: 'mock-token-1', hint: 'Демо-токен встроенного сервера' };
   }
 
+  /** Есть ли рядом нативное ядро на Rust и как оно себя чувствует. */
+  nativeInfo() {
+    try {
+      return NativeBridge.descriptor();
+    } catch (error) {
+      return { available: false, engine: 'js', reason: String(error && error.message ? error.message : error) };
+    }
+  }
+
+  /** Замер скорости: JS против Rust на одном и том же наборе данных. */
+  bench(params) {
+    const p = params || {};
+    return BenchCompare.compare({
+      rows: Number(p.rows) || 26,
+      iterations: Number(p.iterations) || 200,
+      marks: Number(p.marks) || 120
+    });
+  }
+
   studentFrom(params) {
     const p = params || {};
     if (p.studentId && this.children.length) {
@@ -350,6 +372,8 @@ class MeshService extends EventEmitter {
       case 'homeworks': return this.homeworks(payload);
       case 'schedule': return this.schedule(payload);
       case 'names': return this.names(payload && payload.personIds);
+      case 'native': return this.nativeInfo();
+      case 'bench': return this.bench(payload);
       case 'demoToken': return this.demoToken();
       case 'clearCache': return this.clearCache();
       case 'settingsGet': return this.settingsGet();

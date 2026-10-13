@@ -20,11 +20,13 @@
     "start": "npm run sync && electron .",
     "dev": "npm run sync && electron . --dev",
     "demo": "npm run sync && electron . --demo",
-    "prepack": "npm run sync",
-    "pack": "npm run sync && electron-builder --dir",
-    "dist:win": "npm run sync && electron-builder --win nsis portable --publish never",
-    "dist:linux": "npm run sync && electron-builder --linux AppImage deb --publish never",
-    "dist": "npm run sync && electron-builder --win nsis portable --linux AppImage deb --publish never"
+    "rust": "node tools/build-rust.js",
+    "rust:check": "node tools/build-rust.js --check",
+    "prepack": "npm run sync && npm run rust",
+    "pack": "npm run sync && npm run rust && electron-builder --dir",
+    "dist:win": "npm run sync && npm run rust && electron-builder --win nsis portable --publish never",
+    "dist:linux": "npm run sync && npm run rust && electron-builder --linux AppImage deb --publish never",
+    "dist": "npm run sync && npm run rust && electron-builder --win nsis portable --linux AppImage deb --publish never"
   },
   "devDependencies": {
     "electron": "^33.2.0",
@@ -44,6 +46,9 @@
       "src/renderer/**/*",
       "src/core/**/*",
       "package.json"
+    ],
+    "extraResources": [
+      { "from": "bin", "to": "bin", "filter": ["**/*"] }
     ],
     "win": {
       "target": [

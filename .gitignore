@@ -10,6 +10,10 @@ desktop/out/
 npm-debug.log*
 yarn-error.log*
 
+# Собранное нативное ядро (его делает npm run rust)
+desktop/bin/
+rust/target/
+
 # Собранные копии общего кода (их делает npm run sync / задача syncSharedUi)
 desktop/src/renderer/
 desktop/src/core/

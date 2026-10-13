@@ -1,7 +1,16 @@
 # Сборка и выпуск
 
 Всё собирается автоматически в GitHub Actions — локально нужен только Node.js
-(для веб-версии и desktop) или JDK 17 + Android SDK (для APK).
+(для веб-версии и desktop) или JDK 17 + Android SDK (для APK). Нативное ядро
+на Rust собирается в CI автоматически; локально для него нужен Rust (rustup).
+
+Полный набор локальных проверок (то же, что в CI, кроме сборок):
+
+```bash
+node --test tests/*.test.js      # ядро, аналитика, мост к нативному ядру
+node tools/smoke-preview.js      # полный путь пользователя в демо-режиме
+node tools/validate-android.js   # статические проверки Android-ресурсов
+```
 
 ## Вариант 1. Всё делает CI
 
@@ -28,21 +37,47 @@ node tools/preview-server.js --demo     # демо-данные, http://localhos
 node tools/preview-server.js --port 8080 --host 0.0.0.0   # доступ из локальной сети
 ```
 
+### Нативное ядро на Rust (быстрые расчёты)
+
+Ядро необязательно: без него приложение считает на JS. Если cargo установлен,
+соберите бинарник — приложение найдёт его само.
+
+```bash
+cd rust
+cargo test                       # тесты ядра и CLI (без сети)
+cargo build --release            # → rust/target/release/mesh-rank
+./target/release/mesh-rank selftest
+./target/release/mesh-rank bench --students 26 --iterations 500
+```
+
+Проверка, что мост Node ↔ Rust отвечает так же, как JS-ядро (нужен собранный бинарник):
+
+```bash
+node tools/check-rust-bridge.js
+```
+
 ### Desktop (Windows / Linux)
 
 ```bash
 cd desktop
 npm install
+npm run rust              # собрать нативное ядро в desktop/bin (без cargo — просто пропустится)
 npm start                 # запуск
 npm run demo              # запуск с встроенным демо-сервером
 npm run dist:win          # Windows: NSIS + portable  (собирать лучше на Windows)
 npm run dist:linux        # Linux: AppImage + deb     (собирать лучше на Linux)
 ```
 
+`npm run pack`, `dist:win`, `dist:linux` и `dist` вызывают `npm run rust` сами;
+если Rust не установлен, сборка продолжится без нативного ядра (приложение будет
+работать на JS — функции те же).
+
 Что важно знать:
 
 - `npm run sync` копирует `shared/ui` и `shared/core` в `desktop/src/` — это делает
   каждая сборка автоматически, руками синхронизировать не нужно;
+- `npm run rust` кладёт `mesh-rank` в `desktop/bin`, а electron-builder копирует его
+  в `resources/bin` упакованного приложения (см. `extraResources` в `desktop/package.json`);
 - иконка берётся из `desktop/build/icon.png` (electron-builder сам делает из неё `.ico`
   для Windows); чтобы поменять — положите квадратный PNG 512×512 с тем же именем;
 - кросс-сборка Windows-установщика на Linux возможна, но надёжнее собирать на целевой ОС
