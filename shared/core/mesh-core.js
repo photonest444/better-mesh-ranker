@@ -513,8 +513,12 @@
       subjectId: util.asStr(util.firstDefined(raw.subject_id, raw.subjectId, '')),
       subjectName: util.asStr(util.firstDefined(raw.subject_name, raw.subjectName, '—')),
       description: util.asStr(util.firstDefined(raw.description, raw.text, raw.homework, '')),
-      assignedOn: util.toIso(util.firstDefined(raw.date_assigned_on, raw.date, util.todayIso())),
-      dueDate: util.isBlank(util.firstDefined(raw.date_prepared, raw.deadline, raw.due_date, '')) ? null : util.toIso(util.firstDefined(raw.date_prepared, raw.deadline, raw.due_date)),
+      assignedOn: util.toIso(util.firstDefined(raw.date_assigned_on, raw.date, raw.assignedOn, util.todayIso())),
+      // Ключи «сырого» ответа МЭШ и нормализованного объекта — чтобы задания
+      // можно было прогонять через нормализатор повторно (CLI, Rust-мост, тесты).
+      dueDate: util.isBlank(util.firstDefined(raw.date_prepared, raw.deadline, raw.due_date, raw.dueDate, ''))
+        ? null
+        : util.toIso(util.firstDefined(raw.date_prepared, raw.deadline, raw.due_date, raw.dueDate)),
       isDone: util.asBool(util.firstDefined(raw.is_done, raw.isDone, false)),
       attachments: util.firstDefined(raw.attachments, raw.files, []) || [],
       raw: raw

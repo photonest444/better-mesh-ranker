@@ -55,6 +55,24 @@ async function main() {
     const core = await fetch(base + '/core/mesh-core.js');
     check('ядро доступно по /core/', core.status === 200);
 
+    // Новые модули аналитики и нативного ускорителя отдаются вместе с интерфейсом
+    const modules = ['/core/lib/insights.js', '/core/native.js', '/core/accelerate.js', '/core/bench-compare.js', '/views/insights.js'];
+    for (const route of modules) {
+      const response = await fetch(base + route);
+      const text = await response.text();
+      check('модуль ' + route + ' отдаётся', response.status === 200 && text.length > 200);
+    }
+    check('интерфейс подключает палитру команд и прогноз',
+      html.includes('components/palette.js') && html.includes('views/insights.js'));
+
+    const native = await call(base, '/api/native');
+    check('GET /api/native сообщает движок расчётов',
+      native.status === 200 && native.json.ok === true && ['js', 'rust'].includes(native.json.data.engine));
+
+    const bench = await call(base, '/api/bench?rows=26&iterations=50');
+    check('GET /api/bench замеряет сборку рейтинга',
+      bench.status === 200 && bench.json.data.js.opsPerSecond > 0, bench.text.slice(0, 160));
+
     const stateBefore = await call(base, '/api/state');
     check('GET /api/state сообщает про отсутствие сессии', stateBefore.json.data.authenticated === false);
 
