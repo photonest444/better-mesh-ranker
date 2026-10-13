@@ -1,0 +1,16 @@
+[package]
+name = "mesh-core"
+description = "МЭШ (school.mos.ru): протокол, разбор данных, статистика рейтинга — без внешних зависимостей"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+name = "mesh_core"
+path = "src/lib.rs"
+
+[dependencies]
+# Намеренно пусто: только std. Никаких serde/regex/reqwest —
+# JSON, извлечение токена и HTTP/1.1 реализованы в этом же крейте.

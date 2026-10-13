@@ -1,0 +1,18 @@
+[package]
+name = "mesh-cli"
+description = "mesh-rank — нативный CLI и мост JSON-lines для приложения Mesh Ranker (МЭШ)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "mesh-rank"
+path = "src/main.rs"
+
+[dependencies]
+mesh-core = { workspace = true }
+
+[profile.release]
+# Наследуется из корневого Cargo.toml рабочего пространства

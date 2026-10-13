@@ -1,0 +1,37 @@
+# Mesh Ranker — нативное ядро на Rust.
+#
+# Рабочее пространство намеренно не имеет НИ ОДНОЙ внешней зависимости:
+# сборка идёт обычным `cargo build --release` без доступа к crates.io,
+# а готовый бинарник весит меньше мегабайта и стартует мгновенно.
+#
+#   cargo build --release            # соберёт mesh-rank (CLI + мост для Node)
+#   cargo test                       # тесты ядра (без сети)
+#   cargo run --release -- selftest  # самопроверка без тестового раннера
+
+[workspace]
+resolver = "2"
+members = ["crates/mesh-core", "crates/mesh-cli"]
+
+[workspace.package]
+version = "1.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/photonest444/better-mesh-ranker"
+authors = ["DaniilBorovskiy1809"]
+
+[workspace.dependencies]
+mesh-core = { path = "crates/mesh-core", version = "1.1.0" }
+
+# Максимальная оптимизация релиза: LTO, один модуль кода, без отладочных символов.
+# Именно поэтому нативная часть быстрее JS-ядра на больших таблицах.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.bench]
+opt-level = 3
+lto = true
+codegen-units = 1
