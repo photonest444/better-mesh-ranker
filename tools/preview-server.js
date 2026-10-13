@@ -27,6 +27,10 @@ const SESSION_FILE = path.join(STATE_DIR, 'session.json');
 
 const MeshCore = require(path.join(CORE_DIR, 'mesh-core.js'));
 const util = require(path.join(CORE_DIR, 'lib', 'util.js'));
+// Мост к нативному ядру на Rust: если бинарник собран, сервер посчитает,
+// сколько выигрывает нативная реализация (см. /api/native и /api/bench).
+const NativeBridge = require(path.join(CORE_DIR, 'native.js'));
+const BenchCompare = require(path.join(CORE_DIR, 'bench-compare.js'));
 const { startMockMeshServer } = require(path.join(__dirname, 'mock-mesh-server.js'));
 
 const MIME = {
@@ -234,6 +238,21 @@ function createPreviewServer(options) {
       // ---- health ----
       if (pathname === '/api/health') {
         return ok(res, { server: 'mesh-ranker-preview', demo: context.demo, time: Date.now() });
+      }
+
+      // ---- движок расчётов: есть ли рядом нативное ядро на Rust ----
+      if (pathname === '/api/native') {
+        return ok(res, NativeBridge.descriptor());
+      }
+
+      // ---- сравнение скорости JS и Rust на одних данных ----
+      if (pathname === '/api/bench') {
+        const report = await BenchCompare.compare({
+          rows: Number(url.searchParams.get('rows')) || 26,
+          iterations: Number(url.searchParams.get('iterations')) || 200,
+          marks: Number(url.searchParams.get('marks')) || 120
+        });
+        return ok(res, report);
       }
 
       // ---- состояние сессии ----

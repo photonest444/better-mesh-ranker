@@ -108,7 +108,9 @@
     homeworks: { method: 'GET', path: '/api/homeworks' },
     schedule: { method: 'GET', path: '/api/schedule' },
     names: { method: 'GET', path: '/api/names' },
-    demoToken: { method: 'POST', path: '/api/demo/token' }
+    demoToken: { method: 'POST', path: '/api/demo/token' },
+    native: { method: 'GET', path: '/api/native' },
+    bench: { method: 'GET', path: '/api/bench' }
   };
 
   function callWeb(method, payload) {
@@ -261,6 +263,12 @@
     schedule: function (params) { return call('schedule', params || {}); },
     names: function (personIds) { return call('names', { personIds: (personIds || []).join(',') }); },
     demoToken: function () { return call('demoToken', {}); },
+
+    /** Состояние движка расчётов: работает ли нативное ядро на Rust. */
+    native: function () { return call('native', {}); },
+
+    /** Сравнение скорости JS и Rust на одних данных (для вкладки настроек). */
+    bench: function (params) { return call('bench', params || {}); },
 
     saveFile: saveFile,
 

@@ -49,7 +49,8 @@
       refresh: '⟳', search: '🔍', download: '⭳', close: '✕', check: '✓', warn: '⚠', info: 'ℹ',
       up: '▲', down: '▼', same: '=', star: '★', person: '👤', school: '🏫', clock: '🕒',
       chart: '📊', table: '▦', key: '🔑', lock: '🔒', logout: '⏏', sun: '☀', moon: '🌙',
-      right: '›', left: '‹', plus: '＋', trash: '🗑', print: '🖨', copy: '⧉', book: '📘'
+      right: '›', left: '‹', plus: '＋', trash: '🗑', print: '🖨', copy: '⧉', book: '📘',
+      settings: '⚙', user: '👤', target: '🎯', bolt: '⚡', upload: '⭱', palette: '⌘'
     };
     return icons[name] || '';
   }

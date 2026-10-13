@@ -120,6 +120,8 @@
         ]
       }));
 
+      rootEl.appendChild(performanceCard());
+
       rootEl.appendChild(ui.card({
         title: 'Токен и приватность',
         subtitle: 'Что именно хранится на устройстве',
@@ -132,6 +134,75 @@
       }));
     }
 
+    // ------------------------------------------------------- производительность ---
+
+    var benchState = { loading: false, report: null, error: null, engine: null };
+
+    function describeEngine(info) {
+      if (!info) return 'неизвестно';
+      if (info.available && info.engine === 'rust') {
+        return 'Rust ' + (info.version || '') + ' — нативных вызовов: ' + (info.calls || 0) +
+          (info.errors ? ', ошибок: ' + info.errors : '');
+      }
+      return 'JavaScript' + (info.reason ? ' — ' + info.reason : '');
+    }
+
+    function runBench() {
+      benchState.loading = true;
+      benchState.error = null;
+      render();
+      var local = root.MeshLib && root.MeshLib.benchCompare;
+      Promise.resolve()
+        .then(function () { return platform.native ? platform.native().catch(function () { return null; }) : null; })
+        .then(function (info) {
+          benchState.engine = info;
+          return platform.bench ? platform.bench({ rows: 26, iterations: 300, marks: 120 }) : null;
+        })
+        .then(function (report) {
+          if (report) return report;
+          // Платформа не умеет — считаем локально (без Rust-сравнения).
+          if (!local) throw new Error('Модуль замера недоступен');
+          return local.compare({ rows: 26, iterations: 300 });
+        })
+        .then(function (report) {
+          benchState.report = report;
+          benchState.loading = false;
+          render();
+        })
+        .catch(function (error) {
+          benchState.loading = false;
+          benchState.error = error.message || String(error);
+          render();
+        });
+    }
+
+    function performanceCard() {
+      var report = benchState.report;
+      var body = [];
+      body.push(h('div', { class: 'kv-grid' }, [
+        h('div', { class: 'kv' }, [h('span', { class: 'kv-key', text: 'Движок расчётов' }), h('span', { class: 'kv-value', text: describeEngine(benchState.engine) })]),
+        h('div', { class: 'kv' }, [h('span', { class: 'kv-key', text: 'JS: сборка + сводка' }), h('span', { class: 'kv-value', text: report && report.js ? report.js.perOpMs + ' мс/оп · ' + report.js.opsPerSecond + ' оп/с' : '—' })]),
+        h('div', { class: 'kv' }, [h('span', { class: 'kv-key', text: 'Rust: сборка + сводка' }), h('span', { class: 'kv-value', text: report && report.rust ? report.rust.perOpMs + ' мс/оп · ' + report.rust.opsPerSecond + ' оп/с' : '—' })]),
+        h('div', { class: 'kv' }, [h('span', { class: 'kv-key', text: 'Ускорение' }), h('span', { class: 'kv-value', text: report && report.speedup ? report.speedup + '×' : '—' })])
+      ]));
+      if (report && report.note) body.push(h('p', { class: 'muted small', text: report.note }));
+      if (benchState.error) body.push(h('p', { class: 'muted small', text: 'Замер не удался: ' + benchState.error }));
+      body.push(h('p', { class: 'muted small', text: 'Нативное ядро (mesh-rank) считает рейтинг, сводки, прогноз и CSV на Rust. Если бинарника нет, приложение молча работает на JS — без потери функций.' }));
+
+      return ui.card({
+        title: 'Производительность',
+        subtitle: 'Сколько выигрывает нативное ядро на ваших данных',
+        actions: [
+          ui.button({
+            label: benchState.loading ? 'Считаем…' : 'Замерить', icon: 'bolt', kind: 'primary',
+            disabled: benchState.loading,
+            onClick: runBench
+          })
+        ],
+        body: h('div', {}, body)
+      });
+    }
+
     return { el: rootEl, show: function () { render(); }, hide: function () { }, refresh: render };
   }
 
@@ -141,7 +212,7 @@
     id: 'settings',
     title: 'Настройки',
     icon: 'star',
-    hint: 'Тема, автообновление, приватность',
+    hint: 'Тема, автообновление, движок расчётов',
     create: create
   };
 })(typeof self !== 'undefined' ? self : this);

@@ -95,6 +95,10 @@
       ]));
 
       right.appendChild(ui.button({
+        label: '', icon: 'palette', kind: 'ghost', title: 'Поиск по приложению (Ctrl+K)',
+        onClick: function () { app.openPalette(); }
+      }));
+      right.appendChild(ui.button({
         label: '', icon: 'refresh', kind: 'ghost', title: 'Обновить данные (Ctrl+R)',
         onClick: function () { app.refresh(true); }
       }));
@@ -146,6 +150,12 @@
       if (result && result.catch) result.catch(function (error) { ui.toast(error.message || String(error), { type: 'error' }); });
       platform.settings.set({ lastView: viewId });
       return result;
+    },
+
+    /** Палитра команд: быстрый переход по вкладкам, предметам и действиям. */
+    openPalette: function () {
+      if (!ui.palette) return null;
+      return ui.palette.toggle(app.context());
     },
 
     refresh: function (force) {
@@ -241,6 +251,11 @@
 
     bindShortcuts: function () {
       document.addEventListener('keydown', function (event) {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+          event.preventDefault();
+          app.openPalette();
+          return;
+        }
         if (event.target && /INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) {
           if (event.key === 'Escape' && event.target.blur) event.target.blur();
           return;
@@ -248,6 +263,11 @@
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'r') {
           event.preventDefault();
           app.refresh(true);
+          return;
+        }
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+          event.preventDefault();
+          app.openPalette();
           return;
         }
         if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
