@@ -44,7 +44,7 @@ jobs:
       - name: Дымовой тест приложения (демо-режим, полный путь пользователя)
         run: node tools/smoke-preview.js
 
-      - name: Проверка Android-ресурсов (без сборки: строки, цвета, темы, манифест)
+      - name: "Проверка Android-ресурсов (без сборки: строки, цвета, темы, манифест)"
         run: node tools/validate-android.js
 
       - name: Проверка, что в репозиторий не попали токены и кэши
@@ -63,7 +63,7 @@ jobs:
           echo "Секретов в репозитории не найдено"
 
   rust-core:
-    name: Нативное ядро (Rust): тесты, самопроверка, мост
+    name: "Нативное ядро (Rust): тесты, самопроверка, мост"
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -100,7 +100,7 @@ jobs:
       - name: Бенчмарк ядра (не должен падать и должен быть быстрым)
         run: ./rust/target/release/mesh-rank bench --students 26 --iterations 200 --json | head -c 600
 
-      - name: Мост Node ↔ Rust: протокол и совпадение с JS-ядром
+      - name: "Мост Node ↔ Rust: протокол и совпадение с JS-ядром"
         run: node tools/check-rust-bridge.js
 
   desktop-smoke:
@@ -128,6 +128,10 @@ jobs:
             node --check "$file"
           done
           echo "Синтаксис desktop в порядке"
+
+      - name: Синхронизация общего интерфейса
+        working-directory: desktop
+        run: node tools/sync-ui.js
 
       - name: Rust (stable) — нативное ядро для приложения
         uses: dtolnay/rust-toolchain@stable
